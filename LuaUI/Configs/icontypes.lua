@@ -919,6 +919,10 @@ local icontypes = {
     bitmap='icons/destroyer.dds',
 	size=3.0,
   },
+  a_shiplightcarrier = {
+	bitmap='icons/carrier.dds',
+	size = 2.2,
+  },
   scoutboat = {
     bitmap='icons/scoutboat.dds',
     size=2.2,
