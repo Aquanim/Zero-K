@@ -25,7 +25,7 @@ unitDef = {
   corpse                 = [[DEAD]],
 
   customParams           = {
-    pad_count = 9,
+    --pad_count = 9,
     description_de = [[Flugzeugträger (Bomber) & Anti-Nuke]],
     description_fr = [[Porte-Avion Bombardier & Anti-Nuke]],
     description_pl = [[Lotniskowiec z tarcza antyrakietowa]],
@@ -38,7 +38,7 @@ unitDef = {
 	priority_misc = 2, -- High
   },
 
-  energyUse              = 1.5,
+  --energyUse              = 1.5,
   explodeAs              = [[BIG_UNITEX]],
   floater                = true,
   footprintX             = 4,
@@ -71,6 +71,8 @@ unitDef = {
       onlyTargetCategory = [[SWIM LAND SINK TURRET FLOAT SHIP HOVER]],
     },
 
+	-- see \luarules\configs\drone_defs.lua
+	
   },
 
   weaponDefs             = {
