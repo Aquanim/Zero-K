@@ -852,7 +852,18 @@ do
       if (specialReloadState and specialReloadState > gameFrame) then
 		local special = 1-(specialReloadState-gameFrame)/(ud.customParams.specialreloadtime or 1*30)
         AddBar(messages.ability,special,"reload2",(fullText and floor(special*100)..'%') or '')
-      end	  
+      end	
+
+	  --// DRONE BOOST
+	  
+	  local droneBoostCompletion = GetUnitRulesParam(unitID,"droneBoostCompletion")
+      if droneBoostCompletion then
+		if droneBoostCompletion > 0 then
+			AddBar(messages.ability,droneBoostCompletion,"reload2",(fullText and floor(droneBoostCompletion*100)..'%') or '', nil)
+		elseif droneBoostCompletion < 0 then
+			AddBar(messages.reload,-droneBoostCompletion,"stock",(fullText and floor(-droneBoostCompletion*100)..'%') or '', nil)
+		end		
+      end
 	  
 	  
       --// RELOAD

@@ -3,6 +3,7 @@
 local BUILD_UPDATE_INTERVAL = 15
 
 local carrierDefs = {}
+local droneBoostDefs = {}
 
 local carrierDefNames = {
 	armcarry = {
@@ -24,13 +25,16 @@ local carrierDefNames = {
 		{
 			drone = UnitDefNames.carrydrone.id, 
 			reloadTime = 5, 
-			maxDrones = 8, 
+			maxDrones = 12, 
 			spawnSize = 1, 
-			range = 1000, 
+			range = 1600, 
 			buildTime = 25, 
 			maxBuild = 4,
 			offsets = {0, 0, 0, colvolMidX = 0, colvolMidY = 0, colvolMidZ = 0, aimX = 0, aimY = 0, aimZ = 0}
 		},
+		droneBoostMult = 5,
+		droneBoostTime  = 20,
+		droneBoostCd   = 90,
 	},
 	--corcrw = { {drone = UnitDefNames.attackdrone.id, reloadTime = 15, maxDrones = 6, spawnSize = 2, range = 900, buildTime=3,
 			-- offsets = {0,0,0,colvolMidX=0, colvolMidY=0,colvolMidZ=0,aimX=0,aimY=0,aimZ=0}},

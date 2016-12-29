@@ -63,9 +63,18 @@ local recallDronesCmdDesc = {
 	id      = CMD_RECALL_DRONES,
 	type    = CMDTYPE.ICON,
 	name    = 'Recall Drones',
-	cursor  = 'Load units',
+	cursor  = 'Recall Drones',
 	action  = 'recalldrones',
 	tooltip = 'Recall any owned drones to the mothership.',
+}
+
+local boostDroneBuildCmdDesc = {
+	id      = CMD_BOOST_DRONE_BUILD,
+	type    = CMDTYPE.ICON,
+	name    = 'Boost Drone Construction',
+	cursor  = 'Boost Drone Construction',
+	action  = 'boostdronebuild',
+	tooltip = 'Boost drone construction speed.',
 }
 
 --------------------------------------------------------------------------------
@@ -109,6 +118,8 @@ local function Drones_InitializeDynamicCarrier(unitID)
 			maxDronesOverride[#maxDronesOverride + 1] = drones
 			Spring.InsertUnitCmdDesc(unitID, recallDronesCmdDesc)
 			spSetUnitRulesParam(unitID,"recall_frame_start",nil)
+			spSetUnitRulesParam(unitID,"droneBuildMult",1.0)
+			spSetUnitRulesParam(unitID,"droneBuildMultEnd",nil)
 		end
 	end
 	carrierList[unitID] = InitCarrier(unitID, carrierData, Spring.GetUnitTeam(unitID), maxDronesOverride)
@@ -336,8 +347,10 @@ function SitOnPad(unitID, carrierID, padPieceID, offsets)
 		local buildProgress, health
 		local droneType = droneList[unitID].set
 		local droneInfo = carrierList[carrierID].droneSets[droneType] --may persist even after "carrierList[carrierID]" is emptied
+		
 		local build_step = droneInfo.config.buildStep
 		local build_step_health = droneInfo.config.buildStepHealth
+		
 		while true do
 			if (not droneList[unitID]) then --droneList[unitID] became NIL when drone or carrier is destroyed (in UnitDestroyed()). Is NIL at beginning of frame and this piece of code run at end of frame
 				if carrierList[carrierID] then
@@ -369,9 +382,10 @@ function SitOnPad(unitID, carrierID, padPieceID, offsets)
 			local stunned_or_inbuild = GetUnitIsStunned(carrierID) or (spGetUnitRulesParam(carrierID, "disarmed") == 1)
 			if (landDuration % BUILD_UPDATE_INTERVAL == 0) and (not stunned_or_inbuild) then
 				local slowMult = spGetUnitRulesParam(carrierID, "totalReloadSpeedChange") or 1
+				local boostMult = spGetUnitRulesParam(carrierID,"droneBuildMult") or 1.0
 				health, _, _, _, buildProgress = Spring.GetUnitHealth(unitID)
-				buildProgress = buildProgress+(build_step*slowMult) --progress
-				Spring.SetUnitHealth(unitID, {health=health+(build_step_health*slowMult), build = buildProgress }) 
+				buildProgress = buildProgress+(build_step*slowMult*boostMult) --progress
+				Spring.SetUnitHealth(unitID, {health=health+(build_step_health*slowMult*boostMult), build = buildProgress }) 
 				if buildProgress >= 1 then 
 					callScript(carrierID, "Carrier_droneCompleted", padPieceID)
 					break
@@ -572,9 +586,21 @@ function gadget:AllowCommand(unitID, unitDefID, teamID, cmdID, cmdParams, cmdOpt
 			end
 		end
 		
-		frame = spGetGameFrame()
+		local frame = spGetGameFrame()
 		spSetUnitRulesParam(unitID,"recall_frame_start",frame)
 		
+		return false
+	end
+	if (carrierList[unitID] ~= nil and cmdID == CMD_BOOST_DRONE_BUILD) then
+		local frame = spGetGameFrame()
+		local droneBuildBoostFrame = spGetUnitRulesParam(unitID, "droneBuildMultEnd")
+		local droneBoostMult = carrierDefs[unitDefID].droneBoostMult
+		if droneBoostMult and not droneBuildBoostFrame then
+			--this unit can boost, the boost is not in use (+ve time value) and is not on cooldown (-ve time value)
+			local droneBoostDuration = carrierDefs[unitDefID].droneBoostTime*30 or 1
+			spSetUnitRulesParam(unitID,"droneBuildMult",droneBoostMult)
+			spSetUnitRulesParam(unitID,"droneBuildMultEnd",frame + droneBoostDuration)
+		end
 		return false
 	end
 	if (droneList[unitID] ~= nil) then
@@ -632,7 +658,12 @@ end
 function gadget:UnitCreated(unitID, unitDefID, unitTeam)
 	if (carrierDefs[unitDefID]) then
 		Spring.InsertUnitCmdDesc(unitID, recallDronesCmdDesc)
+		if carrierDefs[unitDefID].droneBoostMult then
+			Spring.InsertUnitCmdDesc(unitID, boostDroneBuildCmdDesc)
+		end
 		spSetUnitRulesParam(unitID,"recall_frame_start",nil)
+		spSetUnitRulesParam(unitID,"droneBuildMult",1.0)
+		spSetUnitRulesParam(unitID,"droneBuildMultEnd",nil)
 	end
 end
 
@@ -668,11 +699,18 @@ end
 function gadget:GameFrame(n)
 	if (((n+1) % 30) == 0) then
 		for carrierID, carrier in pairs(carrierList) do
+			local droneBuildBoostFrame = spGetUnitRulesParam(carrierID, "droneBuildMultEnd")
+			
 			if (not GetUnitIsStunned(carrierID)) then
 				for i = 1, #carrier.droneSets do
 					local set = carrier.droneSets[i]
 					if (set.reload > 0) then
-						local reloadMult = spGetUnitRulesParam(carrierID, "totalReloadSpeedChange") or 1
+						local reloadMult
+						if droneBuildBoostFrame and droneBuildBoostFrame > 0 then
+							reloadMult = set.reload
+						else
+							reloadMult = spGetUnitRulesParam(carrierID, "totalReloadSpeedChange") or 1
+						end
 						set.reload = (set.reload - reloadMult)
 						
 					elseif (set.droneCount < set.maxDrones) and set.buildCount < set.config.maxBuild then --not reach max count and finished previous queue
@@ -690,7 +728,35 @@ function gadget:GameFrame(n)
 								table.remove(carrierList[carrierID].droneInQueue, 1)
 							end
 						end
-						set.reload = set.config.reloadTime -- apply reloadtime when queuing construction (not when it actually happens) - helps keep a constant creation rate over time
+						if droneBuildBoostFrame and droneBuildBoostFrame > 0 then
+							set.reload = 0
+						else
+							set.reload = set.config.reloadTime -- apply reloadtime when queuing construction (not when it actually happens) - helps keep a constant creation rate over time
+						end
+					end
+				end
+			end
+			if droneBuildBoostFrame then
+				local droneBoostDuration = carrierDefs[Spring.GetUnitDefID(carrierID)].droneBoostTime*30 or 1
+				local droneBoostCooldown = carrierDefs[Spring.GetUnitDefID(carrierID)].droneBoostCd*30 or 1
+				if droneBuildBoostFrame > 0 then
+					if droneBuildBoostFrame < n then
+						-- boost has ended, put it on cooldown
+						spSetUnitRulesParam(carrierID,"droneBuildMult",1.0)
+						spSetUnitRulesParam(carrierID,"droneBuildMultEnd", -n - droneBoostCooldown)
+						spSetUnitRulesParam(carrierID,"droneBoostCompletion",0.0)
+					else
+						-- boost continues, update completion fraction
+						spSetUnitRulesParam(carrierID,"droneBoostCompletion",(droneBuildBoostFrame-n)/droneBoostDuration)
+					end
+				elseif droneBuildBoostFrame < 0 then
+					if -droneBuildBoostFrame < n then
+						-- boost cooldown has ended
+						spSetUnitRulesParam(carrierID,"droneBuildMultEnd", nil)
+						spSetUnitRulesParam(carrierID,"droneBoostCompletion",nil)
+					else
+						-- boost cooldown continues, update completion fraction
+						spSetUnitRulesParam(carrierID,"droneBoostCompletion",-1+(-droneBuildBoostFrame-n)/droneBoostCooldown)
 					end
 				end
 			end
