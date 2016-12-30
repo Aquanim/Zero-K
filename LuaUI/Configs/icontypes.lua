@@ -943,6 +943,10 @@ local icontypes = {
     bitmap='icons/shipcarrier.dds',
     size=4,
   },  
+  shiplightcarrier = {
+    bitmap='icons/shipcarrier.dds',
+    size=2.5,
+  }, 
 
   --icon for energy buildings of various tiers, including pylon
   energy_med = {

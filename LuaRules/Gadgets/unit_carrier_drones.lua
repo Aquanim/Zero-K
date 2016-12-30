@@ -49,10 +49,17 @@ local emptyTable = {}
 local carrierDefs, thingsWhichAreDrones, unitRulesCarrierDefs, BUILD_UPDATE_INTERVAL = include "LuaRules/Configs/drone_defs.lua"
 
 local DEFAULT_UPDATE_ORDER_FREQUENCY = 40 -- gameframes
+
+-- default parameters for drone roaming
 local IDLE_DISTANCE = 120
 local ACTIVE_DISTANCE = 180
 local DRONE_HEIGHT = 120
+
+-- duration of drone recall
 local RECALL_TIMEOUT = 300
+
+ -- land if pad is within this range
+local PAD_LAND_RADIUS = 250
 
 local carrierList = {}
 local droneList = {}

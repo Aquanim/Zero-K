@@ -77,7 +77,7 @@ function SetIcons(unitID)
 			end
 		end
 		
-		local rearm = Spring.GetUnitRulesParam(unitID, "noammo") 
+		local rearm = Spring.GetUnitRulesParam(unitID, "noammo") or Spring.GetUnitRulesParam(unitID, "drone_noammo")
 		if rearm then
 			if (not lastRearm[unitID]) or lastRearm[unitID] ~= rearm then
 				lastRearm[unitID] = rearm

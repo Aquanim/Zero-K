@@ -32,6 +32,20 @@ local carrierDefNames = {
 			offsets = {0, 0, 0, colvolMidX = 0, colvolMidY = 0, colvolMidZ = 0, aimX = 0, aimY = 0, aimZ = 0}
 		},
 	},
+	
+	shiplightcarrier = {
+		spawnPieces = {"landpad1", "landpad2", "landpad3"},
+		{
+			drone = UnitDefNames.bomberdrone.id, 
+			reloadTime = 1, 
+			maxDrones = 3, 
+			spawnSize = 1, 
+			range = 1600, 
+			buildTime = 5, 
+			maxBuild = 3,
+			offsets = {0, 0, 0, colvolMidX = 0, colvolMidY = 0, colvolMidZ = 0, aimX = 0, aimY = 0, aimZ = 0}
+		},
+	},
 	--corcrw = { {drone = UnitDefNames.attackdrone.id, reloadTime = 15, maxDrones = 6, spawnSize = 2, range = 900, buildTime=3,
 			-- offsets = {0,0,0,colvolMidX=0, colvolMidY=0,colvolMidZ=0,aimX=0,aimY=0,aimZ=0}},
 	funnelweb = {
