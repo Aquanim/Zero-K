@@ -43,6 +43,43 @@ local spGetGameFrame    = Spring.GetGameFrame
 local random            = math.random
 local CMD_ATTACK		= CMD.ATTACK
 
+local spGiveOrderToUnit = Spring.GiveOrderToUnit
+local spGetUnitsInBox	= Spring.GetUnitsInBox
+local spGetUnitPieceMap = Spring.GetUnitPieceMap
+local spGetUnitPosition = Spring.GetUnitPosition
+local spGetUnitPiecePosition = Spring.GetUnitPiecePosition 
+local spGetUnitVectors = Spring.GetUnitVectors
+local spGetUnitIsStunned = Spring.GetUnitIsStunned
+local spGetCommandQueue = Spring.GetCommandQueue
+local spGetUnitTeam		= Spring.GetUnitTeam
+local spGetUnitAllyTeam	= Spring.GetUnitAllyTeam
+local spGetUnitDefID	= Spring.GetUnitDefID
+local spGetUnitIsDead	= Spring.GetUnitIsDead
+local spAreTeamsAllied = Spring.AreTeamsAllied
+
+local combatCommands = {	-- commands that require ammo to execute
+	[CMD.ATTACK] = true,
+	[CMD.AREA_ATTACK] = true,
+	[CMD.FIGHT] = true,
+	[CMD.PATROL] = true,
+	[CMD.GUARD] = true,
+	[CMD.MANUALFIRE] = true,
+}
+
+local defaultCommands = { -- commands that is processed by gadget
+	[CMD.ATTACK] = true,
+	[CMD.AREA_ATTACK] = true,
+	[CMD.FIGHT] = true,
+	[CMD.PATROL] = true,
+	[CMD.GUARD] = true,
+	[CMD.MANUALFIRE] = true,
+	[CMD_REARM] = true,
+	[CMD_FIND_PAD] = true,
+	[CMD.MOVE] = true,
+	[CMD.REMOVE] = true,
+	[CMD.INSERT] = true,
+}
+
 local emptyTable = {}
 
 -- thingsWhichAreDrones is an optimisation for AllowCommand, no longer used but it'll stay here for now
@@ -65,6 +102,22 @@ local carrierList = {}
 local droneList = {}
 local drones_to_move = {}
 local killList = {}
+
+local droneAirpadDefs = {
+	[UnitDefNames["shiplightcarrier"].id] = {
+		mobile = true, 
+		cap = 3, 
+		padPieceName={"landpad1", "landpad2", "landpad3"}
+	},
+}
+
+local droneAirpadsData = {}	-- stores data
+local droneAirpadsPerAllyteam = {}	-- [allyTeam] = {[pad1ID] = unitDefID1, [pad2ID] = unitDefID2, ..}
+local droneBomberUnitIDs = {}
+local droneBomberToPad = {}	-- [bomberID] = detination pad ID
+local droneBomberLanding = {} -- [bomberID] = true
+local droneRearmRequest = {} -- [bomberID] = true	(used to avoid recursion in UnitIdle)
+local droneRearmRemove = {}
 
 local GiveClampedOrderToUnit = Spring.Utilities.GiveClampedOrderToUnit
 
@@ -188,9 +241,217 @@ local function NewDrone(unitID, droneName, setNum, droneBuiltExternally)
 
 		SetUnitNoSelect(droneID, true)
 
-		droneList[droneID] = {carrier = unitID, set = setNum}		
+		droneList[droneID] = {carrier = unitID, set = setNum}	
 	end
 	return droneID, rot
+end
+
+--------------------------------------------------------------------------------
+-- DRONE BOMBER FUNCTIONS - modified from unit_bomber_command.lua
+--------------------------------------------------------------------------------
+
+local function DroneRefreshEmptyPad(airpadID,airpadDefID)
+	if droneAirpadDefs[airpadDefID] then
+		local piecesList = spGetUnitPieceMap(airpadID)
+		local padPieceName = airpadDefs[airpadDefID].padPieceName
+		local ux,uy,uz = spGetUnitPosition(airpadID)
+		local front, top, right = spGetUnitVectors(airpadID)
+		droneAirpadsData[airpadID].emptySpot = {}
+		for i=1, droneAirpadDefs[airpadDefID].cap do
+			local padName = padPieceName[i]
+			local pieceNum = piecesList[padName]
+			local x,y,z = spGetUnitPiecePosition(airpadID, pieceNum)
+			local offX = front[1]*z + top[1]*y + right[1]*x
+			local offY = front[2]*z + top[2]*y + right[2]*x
+			local offZ = front[3]*z + top[3]*y + right[3]*x
+			local uxx,uyy,uzz = ux+offX, uy+offY, uz+offZ
+			local somethingOnThePad = spGetUnitsInBox(uxx-20,uyy-20,uzz-20, uxx+20,uyy+20,uzz+20)
+			local unit1 = somethingOnThePad[1]
+			local unit2 = somethingOnThePad[2]
+			if (#somethingOnThePad == 1 and unit1== airpadID) or 
+			(#somethingOnThePad == 0) then
+				droneAirpadsData[airpadID].emptySpot[#droneAirpadsData[airpadID].emptySpot+1] = pieceNum; --Spring.MarkerAddPoint(uxx,uyy,uzz, "O")
+			end
+		end
+	end
+end
+
+local function DroneRefreshEmptyspot_minusBomberLanding()
+	for allyTeam in pairs(droneAirpadsPerAllyteam) do --all airpads
+		for airpadID,airpadUnitDefID in pairs (droneAirpadsPerAllyteam[allyTeam]) do
+			if spGetUnitIsDead(airpadID) then --rare case. Can happen if airpad is built & die in same frame
+				droneAirpadsPerAllyteam[allyTeam][airpadID] = nil
+			else
+				DroneRefreshEmptyPad(airpadID,airpadUnitDefID)
+			end
+		end
+	end
+	for bomberID,data in pairs(droneBomberLanding) do --airplane about to land
+		local bomberAirpadID = data.padID
+		for i=1, #airpadsData[bomberAirpadID].emptySpot do
+			local padPiece = data.padPiece
+			if droneAirpadsData[bomberAirpadID].emptySpot[i]== padPiece then
+				table.remove(droneAirpadsData[bomberAirpadID].emptySpot,i)
+				break
+			end
+		end
+	end
+end
+
+local function DroneRequestRearm(unitID, team, forceNow, replaceExisting)
+	Spring.Echo("drone request rearm called")
+	if spGetUnitRulesParam(unitID, "droneAirpadReservation") == 1 then
+		return false --already reserved an airpad, do not reserve another one again
+	end
+	team = team or spGetUnitTeam(unitID)
+	
+	local droneAmmo = spGetUnitRulesParam(unitID, "drone_noammo")
+	Spring.Echo(droneAmmo)
+	if droneAmmo ~= 1 then
+		local health, maxHealth = Spring.GetUnitHealth(unitID)
+		if health and maxHealth and health > maxHealth - 1 then
+			return false
+		end
+	end
+	
+	-- Remove fight orders to implement a fight command version of CommandFire if Fight is the last command.
+	local queueLength = spGetCommandQueue(unitID, 0)
+	if queueLength == 2 and (not Spring.GetUnitStates(unitID)["repeat"]) then
+		spGiveOrderToUnit(unitID, CMD.REMOVE, {CMD.FIGHT}, {"alt"})
+	end
+	
+	Spring.Echo(unitID.." drone requesting rearm")
+	local detectedRearm = false
+	local queue = spGetCommandQueue(unitID, -1) or emptyTable
+	local index = #queue + 1
+	for i=1, #queue do
+		if combatCommands[queue[i].id] then
+			index = i-1
+			break
+		elseif queue[i].id == CMD_REARM then -- already have set rearm point, we have nothing left to do here
+			detectedRearm = true
+			if (not replaceExisting) then
+				return droneBomberToPad[unitID], index	-- FIXME
+			end
+		elseif queue[i].id == CMD_FIND_PAD then	-- already have find airpad command, we might be doing same work twice, skip
+			return
+		end
+	end
+	if forceNow then
+		index = 0
+	end
+	--TODO FindNearestAirpad(unitID, team)
+	local targetPad = spGetUnitRulesParam(unitID, "parent_unit_id") --UnitID find non-reserved airpad of carrier as target
+	Spring.Echo(targetPad)
+	if targetPad then
+		cmdIgnoreSelf = true
+		DroneReserveAirpad(unitID,targetPad)
+		Spring.Echo(unitID.." drone directed to airpad "..targetPad)
+		local replaceExistingRearm = (detectedRearm and replaceExisting) --replace existing Rearm (if available)
+		-- InsertCommand(unitID, index, CMD_REARM, {targetPad}, nil, replaceExistingRearm) --UnitID get RE-ARM commandID. airpadID as its Params[1]
+		if replaceExistingRearm then
+			spGiveOrderToUnit(unitID, CMD.REMOVE, {index}, {""})
+		end
+		--spGiveOrderToUnit(unitID, CMD.INSERT, {index, CMD_REARM, CMD.OPT_SHIFT + CMD.OPT_INTERNAL, targetPad}, {"alt"}) --Internal to avoid repeat
+		spGiveOrderToUnit(unitID, CMD_REARM, {targetPad}, 0) --Internal to avoid repeat
+		cmdIgnoreSelf = false
+		return targetPad, index
+	end
+	
+	
+end
+
+GG.DroneRequestRearm = DroneRequestRearm
+
+local function DroneCancelAirpadReservation(unitID)
+	spSetUnitRulesParam(unitID, "droneAirpadReservation",0)
+	if GG.LandAborted then
+		GG.LandAborted(unitID)
+	end
+	
+	--value greater than 1 for icon state:
+	if spGetUnitRulesParam(unitID, "drone_noammo") == 3 then --repairing
+		spSetUnitRulesParam(unitID, "drone_noammo", 0)
+	elseif spGetUnitRulesParam(unitID, "drone_noammo") == 2 then --refueling
+		spSetUnitRulesParam(unitID, "drone_noammo", 1)
+	end
+	
+	local targetPad
+	if droneBomberToPad[unitID] then --unit was going toward an airpad
+		targetPad = droneBomberToPad[unitID].padID
+		droneBomberToPad[unitID] = nil
+	elseif droneBomberLanding[unitID] then --unit was on the airpad
+		targetPad = droneBomberLanding[unitID].padID
+		droneBomberLanding[unitID] = nil
+	end
+	if not targetPad then
+		return
+	end
+
+	Spring.Echo("Clearing reservation by "..unitID.." drone at pad "..targetPad)
+	if not droneAirpadsData[targetPad] then 
+		return 
+	end
+	local reservations = droneAirpadsData[targetPad].reservations
+	if reservations.units[unitID] then
+		-- totalReservedPad = totalReservedPad -1
+		reservations.units[unitID] = nil
+		reservations.count = math.max(reservations.count - 1, 0)
+		spSetUnitRulesParam(targetPad,"droneUnreservedPad",math.max(0,airpadsData[targetPad].cap-reservations.count)) --hint widgets
+	end
+end
+
+function DroneReserveAirpad(bomberID,airpadID)
+	spSetUnitRulesParam(bomberID, "droneAirpadReservation",1)
+	local reservations = droneAirpadsData[airpadID].reservations
+	if not reservations.units[bomberID] then
+		droneBomberToPad[bomberID] = {padID = airpadID, unitDefID = spGetUnitDefID(bomberID)}
+		-- totalReservedPad = totalReservedPad + 1
+		reservations.units[bomberID] = true --UnitID pre-reserve airpads so that next UnitID (if available) don't try to reserve the same spot
+		reservations.count = reservations.count + 1
+		spSetUnitRulesParam(airpadID,"droneUnreservedPad",math.max(0,droneAirpadsData[airpadID].cap-reservations.count)) --hint widgets
+	end
+end
+
+function GG.DroneRequireRefuel(bomberID)
+	return (spGetUnitRulesParam(bomberID, "drone_noammo") == 2) 
+end
+
+function GG.DroneRefuelComplete(bomberID)	
+	spSetUnitRulesParam(bomberID, "drone_noammo", 3)	-- mark bomber as repairing/ not refueling anymore
+end
+
+function GG.DroneLandComplete(bomberID)
+	local bomberData = droneBomberLanding[bomberID]
+	local padID = bomberData and bomberData.padID
+
+	DroneCancelAirpadReservation(bomberID) -- cancel reservation and mark bomber as free to fire
+	spGiveOrderToUnit(bomberID,CMD.WAIT, emptyTable, 0)
+	spGiveOrderToUnit(bomberID,CMD.WAIT, emptyTable, 0)
+	
+	-- Check queue inheritence
+	local queueLength = spGetCommandQueue(bomberID, 0)
+	local queue = spGetCommandQueue(bomberID, 1)
+	if (queueLength == 0 or (queueLength == 1 and queue and queue[1] and (queue[1].id == CMD_REARM or queue[1].id == 0))) and 
+			(padID and droneAirpadsData[padID] and not droneAirpadsData[padID].mobile) then
+		local padQueueLength = spGetCommandQueue(padID, 0)
+		if padQueueLength > 0 then
+			local padQueue = spGetCommandQueue(padID, -1)
+			for i = 1, #padQueue do
+				padQueue[i][1] = padQueue[i].id
+				padQueue[i][2] = padQueue[i].params
+				padQueue[i][3] = padQueue[i].options
+			end
+			spGiveOrderToUnit(bomberID,CMD.STOP, emptyTable, 0)
+			Spring.GiveOrderArrayToUnitArray({bomberID}, padQueue)
+			return
+		end
+	end
+	
+	-- Remove rearm if the queue was not inherited.
+	if queue and queue[1] and queue[1].id == CMD_REARM then
+		rearmRemove[bomberID] = true --remove current RE-ARM command
+	end
 end
 
 --START OF----------------------------
@@ -516,13 +777,15 @@ local function UpdateCarrierTarget(carrierID, frame)
 		local set = carrierList[carrierID].droneSets[i]
 		local tempCONTAINER
 		
-		
 		for droneID in pairs(set.drones) do
 			tempCONTAINER = droneList[droneID]
 			droneList[droneID] = nil -- to keep AllowCommand from blocking the order
+			
 			local droneStates = Spring.GetUnitStates(carrierID) or emptyTable
 			
-			if attackOrder or setTargetOrder then
+			local droneAmmo = spGetUnitRulesParam(droneID,"drone_noammo")
+			
+			if (attackOrder or setTargetOrder) and (not droneAmmo) then
 				-- drones fire at will if carrier has an attack/target order
 				-- a drone bomber probably should not do this
 				GiveOrderToUnit(droneID, CMD.FIRE_STATE, { 2 }, 0) 
@@ -531,7 +794,10 @@ local function UpdateCarrierTarget(carrierID, frame)
 				GiveOrderToUnit(droneID, CMD.FIRE_STATE, { states.firestate }, 0) 
 			end
 			
-			if recallDrones then
+			if droneAmmo and droneAmmo > 0 then
+				-- drone has no ammo, return to carrier
+				DroneRequestRearm(droneID, nil, true, true)
+			elseif recallDrones then
 				-- move drones to carrier
 				px, py, pz = GetUnitPosition(carrierID)
 				rx, rz = RandomPointInUnitCircle()
@@ -673,6 +939,20 @@ function gadget:UnitFinished(unitID, unitDefID, unitTeam)
 	end
 	if (carrierDefs[unitDefID]) and not carrierList[unitID] then
 		carrierList[unitID] = InitCarrier(unitID, carrierDefs[unitDefID], unitTeam)
+		if droneAirpadDefs[unitDefID] then
+			local allyTeam = select(6, Spring.GetTeamInfo(unitTeam))
+			droneAirpadsData[unitID] = Spring.Utilities.CopyTable(droneAirpadDefs[unitDefID], true)
+			droneAirpadsData[unitID].reservations = {count = 0, units = {}}
+			droneAirpadsData[unitID].emptySpot = {}
+			droneAirpadsPerAllyteam[allyTeam][unitID] = unitDefID
+			spSetUnitRulesParam(unitID,"droneUnreservedPad",droneAirpadsData[unitID].cap) --hint widgets
+		end
+	end
+end
+
+function gadget:UnitIdle(unitID, unitDefID, team)
+	if thingsWhichAreDrones[unitDefID] and spGetUnitRulesParam(unitID, "drone_noammo") == 1 then
+		droneRearmRequest[unitID] = true
 	end
 end
 
@@ -746,6 +1026,10 @@ end
 function gadget:Initialize()
 gadgetHandler:RegisterCMDID(CMD_RECALL_DRONES)
 	GG.Drones_InitializeDynamicCarrier = Drones_InitializeDynamicCarrier
+	local allyteams = Spring.GetAllyTeamList()
+	for i=1,#allyteams do
+		droneAirpadsPerAllyteam[allyteams[i]] = {}
+	end
 	for _, unitID in ipairs(Spring.GetAllUnits()) do
 		local unitDefID = Spring.GetUnitDefID(unitID)
 		local team = Spring.GetUnitTeam(unitID)

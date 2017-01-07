@@ -58,7 +58,6 @@ function Reload()
 		end
 	end
 	Spring.SetUnitRulesParam(unitID, "drone_noammo", 1)
-	Spring.Echo("No Ammo!")
 	--local targetPad, index = GG.RequestRearm(unitID)
 	if areaAttack and index and not re then
 		GG.InsertCommand(unitID, index, cmdID, areaAttack)

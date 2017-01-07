@@ -59,7 +59,12 @@ local min = math.min
 local mobilePadDefs = {
 	[UnitDefNames["armcarry"].id] = true,
 	[UnitDefNames["shipcarrier"].id] = true,
+	[UnitDefNames["shiplightcarrier"].id] = true,
 }
+
+--local dronePadDefs = {
+--	[UnitDefNames["shiplightcarrier"].id] = true,
+--}
 
 local turnRadius = {}
 local rotateUnit = {}
@@ -81,9 +86,11 @@ end
 
 local padSnapRangeSqr = 80^2
 local REFUEL_TIME = 5*30
+local DRONE_REFUEL_TIME = 5*30
 local PAD_ENERGY_DRAIN = 2.5
 
 local REFUEL_HALF_SECONDS = REFUEL_TIME/15
+local DRONE_REFUEL_HALF_SECONDS = DRONE_REFUEL_TIME/15
 
 --------------------------------------------------------------------------------
 --------------------------------------------------------------------------------
@@ -141,6 +148,7 @@ local function SitOnPad(unitID)
 	local function SitLoop()
 		local landDuration = 0
 		local refuelProgress = GG.RequireRefuel(unitID) and 0
+		local droneRefuelProgress = GG.DroneRequireRefuel(unitID) and 0
 		local drainingEnergy = false
 		
 		while true do
@@ -184,8 +192,13 @@ local function SitOnPad(unitID)
 							refuelProgress = false
 							GG.RefuelComplete(unitID)
 						end
-					end
-					if not refuelProgress then
+					elseif droneRefuelProgress then
+						droneRefuelProgress = refuelProgress + slowState
+						if droneRefuelProgress >= DRONE_REFUEL_HALF_SECONDS then
+							droneRefuelProgress = false
+							GG.DroneRefuelComplete(unitID)
+						end
+					else
 						if GG.HasCombatRepairPenalty(unitID) then
 							slowState = slowState/4
 						end

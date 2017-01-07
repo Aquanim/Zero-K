@@ -43,7 +43,9 @@ local carrierDefNames = {
 			range = 1600, 
 			buildTime = 5, 
 			maxBuild = 3,
-			offsets = {0, 0, 0, colvolMidX = 0, colvolMidY = 0, colvolMidZ = 0, aimX = 0, aimY = 0, aimZ = 0}
+			offsets = {0, 0, 0, colvolMidX = 0, colvolMidY = 0, colvolMidZ = 0, aimX = 0, aimY = 0, aimZ = 0},
+			pads = {"landpad1", "landpad2", "landpad3"},
+			bomber = true
 		},
 	},
 	--corcrw = { {drone = UnitDefNames.attackdrone.id, reloadTime = 15, maxDrones = 6, spawnSize = 2, range = 900, buildTime=3,
@@ -160,7 +162,8 @@ local thingsWhichAreDrones = {
 	[UnitDefNames.carrydrone.id] = true,
 	[UnitDefNames.attackdrone.id] = true,
 	[UnitDefNames.battledrone.id] = true,
-	[UnitDefNames.fighterdrone.id] = true
+	[UnitDefNames.fighterdrone.id] = true,
+	[UnitDefNames.bomberdrone.id] = true
 }
 
 local function ProcessCarrierDef(carrierData)
