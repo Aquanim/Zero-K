@@ -352,8 +352,8 @@ local function DroneRequestRearm(unitID, team, forceNow, replaceExisting)
 		if replaceExistingRearm then
 			spGiveOrderToUnit(unitID, CMD.REMOVE, {index}, {""})
 		end
-		--spGiveOrderToUnit(unitID, CMD.INSERT, {index, CMD_REARM, CMD.OPT_SHIFT + CMD.OPT_INTERNAL, targetPad}, {"alt"}) --Internal to avoid repeat
-		spGiveOrderToUnit(unitID, CMD_REARM, {targetPad}, 0) --Internal to avoid repeat
+		spGiveOrderToUnit(unitID, CMD.INSERT, {index, CMD_REARM, CMD.OPT_SHIFT + CMD.OPT_INTERNAL, targetPad}, {"alt"}) --Internal to avoid repeat
+		--spGiveOrderToUnit(unitID, CMD_REARM, {targetPad}, 0) --Internal to avoid repeat
 		cmdIgnoreSelf = false
 		return targetPad, index
 	end
