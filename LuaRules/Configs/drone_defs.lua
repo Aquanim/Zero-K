@@ -35,6 +35,7 @@ local carrierDefNames = {
 	
 	shiplightcarrier = {
 		spawnPieces = {"landpad1", "landpad2", "landpad3"},
+		droneLandingPads = {"landpad1", "landpad2", "landpad3"},
 		{
 			drone = UnitDefNames.bomberdrone.id, 
 			reloadTime = 1, 

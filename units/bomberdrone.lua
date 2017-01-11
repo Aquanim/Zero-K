@@ -86,7 +86,7 @@ unitDef = {
   
     MISSILE = {
       name                    = [[Heavy Missiles]],
-      areaOfEffect            = 96,
+      areaOfEffect            = 16,
       cegTag                  = [[missiletrailgreen]],
       craterBoost             = 1,
       craterMult              = 2,
