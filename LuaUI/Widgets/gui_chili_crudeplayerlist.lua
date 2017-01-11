@@ -128,6 +128,13 @@ function SetupPlayerNames() end
 options_path = 'Settings/HUD Panels/Player List'
 options_order = {'text_height', 'backgroundOpacity', 'reset_wins', 'inc_wins_1', 'inc_wins_2','alignToTop','showSpecs','allyTeamPerTeam','debugMessages','mousewheel','win_show_condition'}
 options = {
+	visible = {
+		name = "Visible",
+		type = 'bool',
+		value = false, --set to true when initialisation is complete
+		desc = "Set a hotkey here to toggle the playerlist on and off",
+		OnChange = function() UpdateVisibility() end,
+	},
 	text_height = {
 		name = 'Font Size (10-18)',
 		type = 'number',
@@ -831,6 +838,22 @@ SetupPlayerNames = function()
 	
 	AlignScrollPanel()
 end
+
+function UpdateVisibility()
+	if window_cpl and scroll_cpl then
+		if options.visible.value then
+			window_cpl:AddChild(scroll_cpl)
+		else
+			window_cpl:RemoveChild(scroll_cpl)
+		end
+	end
+end
+
+function WG.ToggleCrudePlayerlist()
+	options.visible.value = not options.visible.value
+	UpdateVisibility()
+end
+
 --------------------------------------------------------------------------------
 --------------------------------------------------------------------------------
 
@@ -982,6 +1005,9 @@ function widget:Initialize()
 	WG.LocalColor = WG.LocalColor or {}
 	WG.LocalColor.listeners = WG.LocalColor.listeners or {}
 	WG.LocalColor.listeners["Chili Crude Playerlist"] = SetupPlayerNames
+	
+	options.visible.value = true --starting visibility
+	UpdateVisibility()
 end
 
 function widget:Shutdown()

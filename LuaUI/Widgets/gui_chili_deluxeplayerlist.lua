@@ -32,7 +32,7 @@ VFS.Include("LuaRules/Configs/constants.lua")
 VFS.Include ("LuaRules/Utilities/lobbyStuff.lua")
 
 function SetupPlayerNames() end
-function ToggleVisibility() end
+function UpdateVisibility() end
 
 local echo = Spring.Echo
 local spGetUnitIsStunned = Spring.GetUnitIsStunned
@@ -61,9 +61,9 @@ options = {
 	visible = {
 		name = "Visible",
 		type = 'bool',
-		value = true,
+		value = false, --set to true when initialisation is complete
 		desc = "Set a hotkey here to toggle the playerlist on and off",
-		OnChange = function() ToggleVisibility() end,
+		OnChange = function() UpdateVisibility() end,
 	},
 	backgroundOpacity = {
 		name = "Background Opacity",
@@ -1102,7 +1102,7 @@ local function AlignScrollPanel()
 	end
 end
 
-function ToggleVisibility()
+function UpdateVisibility()
 	if window_cpl and scroll_cpl then
 		if options.visible.value then
 			window_cpl:AddChild(scroll_cpl)
@@ -1525,8 +1525,9 @@ SetupPanels = function ()
 		minWidth = x_windowbound,
 	}
 	SetupScrollPanel()
-
-	ToggleVisibility()
+	
+	options.visible.value = true --starting visibility
+	UpdateVisibility()
 end
 
 function PlayersChanged()
@@ -1541,6 +1542,11 @@ function PlayersChanged()
 			SetupPlayerNames()
 		end
 	end
+end
+
+function WG.ToggleDeluxePlayerlist()
+	options.visible.value = not options.visible.value
+	UpdateVisibility()
 end
 
 --------------------------------------------------------------------------------
