@@ -127,6 +127,17 @@ options = {
 			end
 		end,
 	},
+	displayplayerlistwindow = {
+		name = 'Display Playerlist Window',
+		type = 'button',
+		action = 'displayplayerlistwindow',
+		noAutoControlFunc = true,
+		OnChange = function(self)
+			if (WG.TogglePlayerlistWindow) then
+				WG.TogglePlayerlistWindow()
+			end
+		end,
+	},
 	fancySkinning = {
 		name = 'Fancy Skinning',
 		type = 'radioButton',
@@ -528,8 +539,12 @@ local function InitializeControls()
 		{action = 'setferry', command = CMD_SET_FERRY}
 	)
 	MakeCommandButton(contentHolder, 8,
-		'LuaUI/images/epicmenu/people.png', 
+		'LuaUI/images/playerlist/playerlist.png', 
 		{option = 'displayplayerlist'}
+	)
+	MakeCommandButton(contentHolder, 9,
+		'LuaUI/images/playerlist/playerwindow.png', 
+		{option = 'displayplayerlistwindow'}
 	)
 	offset = offset + 1
 	
