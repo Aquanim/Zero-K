@@ -113,6 +113,31 @@ options = {
 			end
 		end,
 	},
+	toggleplayerlist = {
+		name = 'Toggle Player List',
+		type = 'button',
+		action = 'toggleplayerlist',
+		noAutoControlFunc = true,
+		OnChange = function(self)
+			if (WG.ToggleCrudePlayerlist) then
+				WG.ToggleCrudePlayerlist()
+			end
+			if (WG.ToggleDeluxePlayerlist) then
+				WG.ToggleDeluxePlayerlist()
+			end
+		end,
+	},
+	toggleplayerlistwindow = {
+		name = 'Toggle Playerlist Window',
+		type = 'button',
+		action = 'toggleplayerlistwindow',
+		noAutoControlFunc = true,
+		OnChange = function(self)
+			if (WG.TogglePlayerlistWindow) then
+				WG.TogglePlayerlistWindow()
+			end
+		end,
+	},
 	fancySkinning = {
 		name = 'Fancy Skinning',
 		type = 'radioButton',
@@ -414,7 +439,7 @@ local function MakeDropdownButtons(parent, position, overlays)
 		currentOverlayImage.file = overlayImageMap[newDrawMode]
 		currentOverlayImage:Invalidate()
 	end
-
+	
 	function externalFunctions.UpdateTooltip(newTooltip)
 		overlaySelector.tooltip = newTooltip
 		overlaySelector:Invalidate()
@@ -450,7 +475,7 @@ local function InitializeControls()
 	if options.hide.value then
 		mainWindow:Hide()
 	end
-
+	
 	contentHolder = Panel:New{
 		classname = options.fancySkinning.value,
 		x = 0,
@@ -504,7 +529,7 @@ local function InitializeControls()
 	offset = offset + 0.5
 	
 	buttons.place_retreat_zone = MakeCommandButton(contentHolder, offset,
-		'LuaUI/images/commands/Bold/retreat.png',
+		'LuaUI/images/commands/Bold/retreat.png', 
 		{action = 'sethaven', command = CMD_RETREAT_ZONE}
 	)
 	offset = offset + 1
@@ -514,9 +539,26 @@ local function InitializeControls()
 		{action = 'setferry', command = CMD_SET_FERRY}
 	)
 	offset = offset + 1
+
+	-- Playerlist commands
+	offset = offset + 0.5
+
+	MakeCommandButton(contentHolder, offset,
+		'LuaUI/images/playerlist/playerlist.png', 
+		{option = 'toggleplayerlist'}
+	)
+	
+	offset = offset + 1
+	
+	MakeCommandButton(contentHolder, offset,
+		'LuaUI/images/playerlist/playerwindow.png', 
+		{option = 'toggleplayerlistwindow'}
+	)
+	
+	offset = offset + 1
 	
 	commandButtonOffset = offset + 0.5
-end
+end	
 
 function options.background_opacity.OnChange(self)
 	contentHolder.backgroundColor[4] = self.value
@@ -526,7 +568,7 @@ end
 function widget:Update()
 	mapOverlay.UpdateOverlayImage()
 end
-
+			
 local GlobalCommandBar = {}
 
 function GlobalCommandBar.AddCommand(imageFile, tooltip, onClick)
@@ -547,7 +589,7 @@ function widget:Initialize()
 	Progressbar = Chili.Progressbar
 	Control = Chili.Control
 	screen0 = Chili.Screen0
-
+	
 	InitializeControls()
 	WG.InitializeTranslation (languageChanged, GetInfo().name)
 	WG.GlobalCommandBar = GlobalCommandBar
