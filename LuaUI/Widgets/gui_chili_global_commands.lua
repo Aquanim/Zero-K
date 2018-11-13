@@ -113,10 +113,10 @@ options = {
 			end
 		end,
 	},
-	displayplayerlist = {
-		name = 'Display Player List',
+	toggleplayerlist = {
+		name = 'Toggle Player List',
 		type = 'button',
-		action = 'displayplayerlist',
+		action = 'toggleplayerlist',
 		noAutoControlFunc = true,
 		OnChange = function(self)
 			if (WG.ToggleCrudePlayerlist) then
@@ -127,10 +127,10 @@ options = {
 			end
 		end,
 	},
-	displayplayerlistwindow = {
-		name = 'Display Playerlist Window',
+	toggleplayerlistwindow = {
+		name = 'Toggle Playerlist Window',
 		type = 'button',
-		action = 'displayplayerlistwindow',
+		action = 'toggleplayerlistwindow',
 		noAutoControlFunc = true,
 		OnChange = function(self)
 			if (WG.TogglePlayerlistWindow) then
@@ -533,18 +533,23 @@ local function InitializeControls()
 		{action = 'sethaven', command = CMD_RETREAT_ZONE}
 	)
 	offset = offset + 1
-	
 	buttons.place_ferry_route = MakeCommandButton(contentHolder, offset,
 		'LuaUI/images/commands/Bold/ferry.png', 
 		{action = 'setferry', command = CMD_SET_FERRY}
 	)
-	MakeCommandButton(contentHolder, 8,
+	offset = offset + 1
+	
+	-- Player list commands
+	offset = offset + 0.5
+	
+	MakeCommandButton(contentHolder, offset,
 		'LuaUI/images/playerlist/playerlist.png', 
-		{option = 'displayplayerlist'}
+		{option = 'toggleplayerlist'}
 	)
-	MakeCommandButton(contentHolder, 9,
+	offset = offset + 1
+	MakeCommandButton(contentHolder, offset,
 		'LuaUI/images/playerlist/playerwindow.png', 
-		{option = 'displayplayerlistwindow'}
+		{option = 'toggleplayerlistwindow'}
 	)
 	offset = offset + 1
 	
